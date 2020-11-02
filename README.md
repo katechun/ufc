@@ -1,1 +1,3 @@
-add a line 
+##UFC##
+
+The project is a blockchain coin.
