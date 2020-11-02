@@ -16,7 +16,6 @@ import (
 	"strings"
 )
 
-
 const (
 	ValidatorSetChangePrefix string = "val:"
 )
@@ -24,20 +23,17 @@ const (
 var (
 	//获取系统账户地址
 	SYSTEM_ISSUER = crypto.Address("KING_OF_TOKEN")
-	stateKey        = []byte("stateKey")
+	stateKey      = []byte("stateKey")
 	//kvPairPrefixKey = []byte("kvPairKey:")
 	//
 	//ProtocolVersion version.Protocol = 0x1
 )
 
-
-
 //定义应用结构
-type TokenApp struct{
+type TokenApp struct {
 	types.BaseApplication
 	Accounts map[string]int
-	state State
-
+	state    State
 }
 
 type State struct {
@@ -46,7 +42,6 @@ type State struct {
 	Height  int64  `json:"height"`
 	AppHash []byte `json:"app_hash"`
 }
-
 
 type PersistentUfcApplication struct {
 	app *TokenApp
@@ -59,12 +54,10 @@ type PersistentUfcApplication struct {
 	logger log.Logger
 }
 
-
 //新建应用
 //func NewTokenApp() *TokenApp{
 //	return &TokenApp{Accounts:map[string]int{}}
 //}
-
 
 func NewTokenApp(dbDir string) *PersistentUfcApplication {
 	name := "ufc"
@@ -76,7 +69,7 @@ func NewTokenApp(dbDir string) *PersistentUfcApplication {
 	state := loadState(db)
 
 	return &PersistentUfcApplication{
-		app:                &TokenApp{state: state},
+		app:                &TokenApp{state: state, Accounts: make(map[string]int)},
 		valAddrToPubKeyMap: make(map[string]types.PubKey),
 		logger:             log.NewNopLogger(),
 	}
@@ -99,7 +92,6 @@ func loadState(db dbm.DB) State {
 	return state
 }
 
-
 func (app *PersistentUfcApplication) Info(req types.RequestInfo) types.ResponseInfo {
 	res := app.app.Info(req)
 	res.LastBlockHeight = app.app.state.Height
@@ -111,27 +103,27 @@ func (app *PersistentUfcApplication) SetOption(req types.RequestSetOption) types
 	return app.app.SetOption(req)
 }
 
-
 //查询操作
-func (app *PersistentUfcApplication)Query(req types.RequestQuery)(rsp types.ResponseQuery){
-	fmt.Println("crypto address:",req.Data)
+func (app *PersistentUfcApplication) Query(req types.RequestQuery) (rsp types.ResponseQuery) {
+	//fmt.Println("crypto address:",req.Data)
 	//获取账户地址
 	addr := crypto.Address(req.Data)
-	rsp.Key=req.Data
+	rsp.Key = req.Data
 	//获取账户信息并进行序列化
-	rsp.Value,_=codec.MarshalBinaryBare(app.app.Accounts[addr.String()])
-	fmt.Println(rsp.Value)
+	rsp.Value, _ = MarshalBinary(app.app.Accounts[addr.String()])
+	//fmt.Println(rsp.Value)
 	//rsp.Value=app.Accounts[addr.String()]
 	return
 }
 
+func (app *PersistentUfcApplication) CheckTx(raw types.RequestCheckTx) (rsp types.ResponseCheckTx) {
 
-func ( app *PersistentUfcApplication)CheckTx(raw types.RequestCheckTx)(rsp types.ResponseCheckTx){
-
-	tx,err := app.decodeTx(raw.Tx)
+	//tx,err := app.decodeTx(raw.Tx)
+	tx := Tx{}
+	err := UnmarshalBinary(raw.Tx, &tx)
 	if err != nil {
-		rsp.Code =1
-		rsp.Log="decode error"
+		rsp.Code = 1
+		rsp.Log = "decode error"
 	}
 
 	if !tx.Verify() {
@@ -142,26 +134,29 @@ func ( app *PersistentUfcApplication)CheckTx(raw types.RequestCheckTx)(rsp types
 	return
 }
 
-
 //发布事务
-func (app *PersistentUfcApplication)DeliverTx(raw types.RequestDeliverTx)(rsp types.ResponseDeliverTx){
-	tx,_ := app.decodeTx(raw.Tx)
-	switch tx.Payload.GetType(){
+func (app *PersistentUfcApplication) DeliverTx(raw types.RequestDeliverTx) (rsp types.ResponseDeliverTx) {
+	tx := Tx{}
+	_ = UnmarshalBinary(raw.Tx, &tx)
+	switch tx.Payload.GetType() {
 	case "issue":
 		pld := tx.Payload.(*IssuePayload)
-		err := app.Issue(pld.Issuer,pld.To,pld.Value)
-		if err != nil { rsp.Log = err.Error()}
+		err := app.Issue(pld.Issuer, pld.To, pld.Value)
+		if err != nil {
+			rsp.Log = err.Error()
+		}
 		rsp.Info = "issue tx applied"
 	case "transfer":
 		pld := tx.Payload.(*TransferPayload)
-		err := app.Transfer(pld.From,pld.To,pld.Value)
-		if err != nil { rsp.Log = err.Error()}
-		rsp.Info="transger tx applied"
+		err := app.Transfer(pld.From, pld.To, pld.Value)
+		if err != nil {
+			rsp.Log = err.Error()
+		}
+		rsp.Info = "transger tx applied"
 	}
 
 	return
 }
-
 
 // Commit will panic if InitChain was not called
 func (app *PersistentUfcApplication) Commit() types.ResponseCommit {
@@ -204,61 +199,50 @@ func (app *PersistentUfcApplication) EndBlock(req types.RequestEndBlock) types.R
 	return types.ResponseEndBlock{ValidatorUpdates: app.ValUpdates}
 }
 
-
-
-
 //转账交易
-func (app *PersistentUfcApplication)Transfer(from,to crypto.Address,value int) error{
+func (app *PersistentUfcApplication) Transfer(from, to crypto.Address, value int) error {
 	//如果账号余额不够就抛出错误
 	if app.app.Accounts[from.String()] < value {
 		return errors.New("balance low")
 	}
 
 	app.app.Accounts[from.String()] -= value
-	app.app.Accounts[to.String()]+=value
+	app.app.Accounts[to.String()] += value
 	return nil
 
 }
 
-
-func (app *PersistentUfcApplication)decodeTx(raw []byte)(*Tx,error){
-	var tx Tx
-	err := codec.UnmarshalBinaryBare(raw,&tx)
-	return &tx,err
-}
-
+//func (app *PersistentUfcApplication)decodeTx(raw []byte)(*Tx,error){
+//	var tx Tx
+//	err := lib.(raw,&tx)
+//	fmt.Println(tx)
+//	return &tx,err
+//}
 
 //发行货币 向系统账号增加货币数量
-func (app *PersistentUfcApplication)Issue(issuer,to crypto.Address,value int) error {
+func (app *PersistentUfcApplication) Issue(issuer, to crypto.Address, value int) error {
 	//导入钱包信息
 	wallet := LoadWallet("./wallet")
 	//获取系统账号地址
-	SYSTEM_ISSUER=wallet.GetAddress("issuer")
+	SYSTEM_ISSUER = wallet.GetAddress("issuer")
 
 	//判断发行地址和系统地址是否一致
-	if !bytes.Equal(issuer,SYSTEM_ISSUER) {
+	if !bytes.Equal(issuer, SYSTEM_ISSUER) {
 		return errors.New("invalid issuer")
 	}
 
+	fmt.Println("app.app.Accounts[to.String()]", app.app.Accounts[to.String()])
+
 	//把发行的系统账号累加发行货币数量
-	app.app.Accounts[to.String()]+=value
+	app.app.Accounts[to.String()] += value
+	fmt.Println("app.app.Accounts[to.String()]", app.app.Accounts[to.String()])
 
 	return nil
 }
 
-
-
-//func (app *TokenApp)Commit() (rsp types.ResponseCommit){
-//	rsp.Data = app.getRootHash()
-//	return
-//}
-
-
-func (app *PersistentUfcApplication)Dump(){
-	fmt.Printf("state => %v\n",app.app.Accounts)
+func (app *PersistentUfcApplication) Dump() {
+	fmt.Printf("state => %v\n", app.app.Accounts)
 }
-
-
 
 // add, update, or remove a validator
 func (app *PersistentUfcApplication) updateValidator(v types.ValidatorUpdate) types.ResponseDeliverTx {
@@ -299,8 +283,6 @@ func (app *PersistentUfcApplication) updateValidator(v types.ValidatorUpdate) ty
 	return types.ResponseDeliverTx{Code: code.CodeTypeOK}
 }
 
-
-
 func (app *PersistentUfcApplication) Validators() (validators []types.ValidatorUpdate) {
 	itr, err := app.app.state.db.Iterator(nil, nil)
 	if err != nil {
@@ -322,31 +304,3 @@ func (app *PersistentUfcApplication) Validators() (validators []types.ValidatorU
 func isValidatorTx(tx []byte) bool {
 	return strings.HasPrefix(string(tx), ValidatorSetChangePrefix)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

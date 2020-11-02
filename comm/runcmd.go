@@ -21,19 +21,17 @@ import (
 	"ufc/tx"
 )
 
-
-
 var _ types.Application = (*lib.TokenApp)(nil)
 
 var (
-	app_cli,_ = http.New("http://localhost:26657","/websocket")
+	app_cli, _ = http.New("http://localhost:26657", "/websocket")
 )
 
-type App struct{
+type App struct {
 	types.BaseApplication
-	Value        int64
-	Version      int64
-	History      map[int64]int64
+	Value   int64
+	Version int64
+	//History      map[int64]int64
 	state        State
 	RetainBlocks int64
 }
@@ -55,52 +53,48 @@ type UApp struct {
 	logger log.Logger
 }
 
-
-
-
-func Run(){
+func Run() {
 
 	//rootCmd := &cobra.Command{
 	//	Use: "cli",
 	//}
 
-
 	walletCmd := &cobra.Command{
-		Use: "init-wallet",
-		Short:"Initialize Wallet",
-		Run: func(cmd *cobra.Command,args []string) { px.InitWallet() },
+		Use:   "init-wallet",
+		Short: "Initialize Wallet",
+		Run:   func(cmd *cobra.Command, args []string) { px.InitWallet() },
 	}
 
 	issueCmd := &cobra.Command{
-		Use: "issue-tx",
-		Short:"Issue coins",
-		Run: func(cmd *cobra.Command,args []string) { tx.Issue(app_cli) },
+		Use:   "issue-tx",
+		Short: "Issue coins",
+		Run:   func(cmd *cobra.Command, args []string) { tx.Issue(app_cli) },
 	}
 
 	transferCmd := &cobra.Command{
-		Use: "transfer-tx",
+		Use:   "transfer-tx",
 		Short: "Transaction detail",
-		Run: func(cmd *cobra.Command,args []string) { tx.Transfer(app_cli) },
+		Run:   func(cmd *cobra.Command, args []string) { tx.Transfer(app_cli) },
 	}
 
 	queryCmd := &cobra.Command{
-		Use: "query",
+		Use:   "query",
 		Short: "Show info",
-		RunE: func(cmd *cobra.Command,args []string) error {
-			if len(args) == 0 { return errors.New("query who?") }
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return errors.New("query who?")
+			}
 			label := args[0]
-			tx.Query(label,app_cli)
+			tx.Query(label, app_cli)
 			return nil
 		},
 	}
 
 	runAppCmd := &cobra.Command{
-		Use: "run-app",
+		Use:   "run-app",
 		Short: "Run a ABCI Application",
-		Run: func(cmd *cobra.Command,args []string){RunApp()},
+		Run:   func(cmd *cobra.Command, args []string) { RunApp() },
 	}
-
-
 
 	root := commands.RootCmd
 	root.AddCommand(commands.GenNodeKeyCmd)
@@ -110,7 +104,7 @@ func Run(){
 	root.AddCommand(commands.ShowNodeIDCmd)
 	root.AddCommand(commands.TestnetFilesCmd)
 
-	app:= lib.NewTokenApp(lib.GetDbDir())
+	app := lib.NewTokenApp(lib.GetDbDir())
 	nodeProvider := makeNodeProvider(app)
 	root.AddCommand(commands.NewRunNodeCmd(nodeProvider))
 
@@ -120,16 +114,14 @@ func Run(){
 	root.AddCommand(queryCmd)
 	root.AddCommand(runAppCmd)
 
-	exec := cli.PrepareBaseCmd(root,"wiz",".")
-	_=exec.Execute()
+	exec := cli.PrepareBaseCmd(root, "wiz", ".")
+	_ = exec.Execute()
 }
 
-
-
-func RunApp(){
+func RunApp() {
 	app := lib.NewTokenApp(lib.GetDbDir())
-	svr,err := server.NewServer(":26658","socket",app)
-	if err !=nil {
+	svr, err := server.NewServer(":26658", "socket", app)
+	if err != nil {
 		panic(err)
 	}
 
@@ -138,7 +130,7 @@ func RunApp(){
 
 	fmt.Println("Token Server started!")
 
-	select{}
+	select {}
 
 }
 
@@ -146,15 +138,15 @@ func RunApp(){
 //	return &App{}
 //}
 
-func makeNodeProvider(app types.Application)node.Provider{
-	return func(config *cfg.Config,logger log.Logger)(*node.Node,error){
-		nodeKey,err := p2p.LoadOrGenNodeKey(config.NodeKeyFile())
+func makeNodeProvider(app types.Application) node.Provider {
+	return func(config *cfg.Config, logger log.Logger) (*node.Node, error) {
+		nodeKey, err := p2p.LoadOrGenNodeKey(config.NodeKeyFile())
 		if err != nil {
 			return nil, err
 		}
 
 		return node.NewNode(config,
-			privval.LoadOrGenFilePV(config.PrivValidatorKeyFile(),config.PrivValidatorStateFile()),
+			privval.LoadOrGenFilePV(config.PrivValidatorKeyFile(), config.PrivValidatorStateFile()),
 			nodeKey,
 			proxy.NewLocalClientCreator(app),
 			node.DefaultGenesisDocProviderFunc(config),
