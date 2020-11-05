@@ -60,21 +60,52 @@ func Run() {
 	//}
 
 	walletCmd := &cobra.Command{
-		Use:   "init-wallet",
+		Use:   "init_wallet",
 		Short: "Initialize Wallet",
 		Run:   func(cmd *cobra.Command, args []string) { px.InitWallet() },
 	}
 
+	createAccountCmd := &cobra.Command{
+		Use:   "create_account",
+		Short: "Create one Account",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return errors.New("Please input account name!")
+			}
+			label := args[0]
+			lib.CreateAccount(label)
+			return nil
+		},
+	}
+
 	issueCmd := &cobra.Command{
-		Use:   "issue-tx",
+		Use:   "issue_tx",
 		Short: "Issue coins",
-		Run:   func(cmd *cobra.Command, args []string) { tx.Issue(app_cli) },
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return errors.New("Issue coin error!")
+			}
+			err := tx.Issue(app_cli, args[0])
+			if err != nil {
+				fmt.Println(err)
+			}
+			return nil
+		},
 	}
 
 	transferCmd := &cobra.Command{
-		Use:   "transfer-tx",
+		Use:   "transfer_tx",
 		Short: "Transaction detail",
-		Run:   func(cmd *cobra.Command, args []string) { tx.Transfer(app_cli) },
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return errors.New("Issue coin error!")
+			}
+			err := tx.Transfer(app_cli, args[0], args[1])
+			if err != nil {
+				fmt.Println(err)
+			}
+			return nil
+		},
 	}
 
 	queryCmd := &cobra.Command{
@@ -91,7 +122,7 @@ func Run() {
 	}
 
 	runAppCmd := &cobra.Command{
-		Use:   "run-app",
+		Use:   "run_app",
 		Short: "Run a ABCI Application",
 		Run:   func(cmd *cobra.Command, args []string) { RunApp() },
 	}
@@ -102,7 +133,7 @@ func Run() {
 	root.AddCommand(commands.InitFilesCmd)
 	root.AddCommand(commands.ResetAllCmd)
 	root.AddCommand(commands.ShowNodeIDCmd)
-	root.AddCommand(commands.TestnetFilesCmd)
+	//root.AddCommand(commands.TestnetFilesCmd)
 
 	app := lib.NewTokenApp(lib.GetDbDir())
 	nodeProvider := makeNodeProvider(app)
@@ -113,6 +144,7 @@ func Run() {
 	root.AddCommand(transferCmd)
 	root.AddCommand(queryCmd)
 	root.AddCommand(runAppCmd)
+	root.AddCommand(createAccountCmd)
 
 	exec := cli.PrepareBaseCmd(root, "wiz", ".")
 	_ = exec.Execute()
@@ -125,8 +157,8 @@ func RunApp() {
 		panic(err)
 	}
 
-	svr.Start()
-	defer svr.Stop()
+	_ = svr.Start()
+	defer func() { _ = svr.Stop() }()
 
 	fmt.Println("Token Server started!")
 

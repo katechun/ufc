@@ -1,8 +1,6 @@
 package paramer
 
-import (
-	"ufc/lib"
-)
+import "ufc/lib"
 
 //var (
 //	Issuer = kf.GenPrivKey()
@@ -10,9 +8,12 @@ import (
 //)
 
 func InitWallet() {
-	wallet := lib.NewWallet()
-	wallet.GenPrivKey("issuer")
-	wallet.GenPrivKey("michael")
-	wallet.GenPrivKey("britney")
-	wallet.Save("./wallet")
+
+	lib.LoadWallet()
+
+	////wallet := lib.NewWallet()
+	//wallet.GenPrivKey("issuer")
+	//wallet.GenPrivKey("michael")
+	//wallet.GenPrivKey("britney")
+	//wallet.Save("./wallet")
 }

@@ -13,12 +13,15 @@ import (
 	"github.com/tendermint/tendermint/libs/log"
 	tmtypes "github.com/tendermint/tendermint/types"
 	dbm "github.com/tendermint/tm-db"
+	"strconv"
 	"strings"
 )
 
 const (
 	ValidatorSetChangePrefix string = "val:"
 )
+
+type Address = crypto.Address
 
 var (
 	//获取系统账户地址
@@ -111,6 +114,8 @@ func (app *PersistentUfcApplication) Query(req types.RequestQuery) (rsp types.Re
 	rsp.Key = req.Data
 	//获取账户信息并进行序列化
 	rsp.Value, _ = MarshalBinary(app.app.Accounts[addr.String()])
+	rsp.Key = req.Data
+	rsp.Log = fmt.Sprintf("balance : %v => %v", addr, app.app.Accounts[addr.String()])
 	//fmt.Println(rsp.Value)
 	//rsp.Value=app.Accounts[addr.String()]
 	return
@@ -136,26 +141,42 @@ func (app *PersistentUfcApplication) CheckTx(raw types.RequestCheckTx) (rsp type
 
 //发布事务
 func (app *PersistentUfcApplication) DeliverTx(raw types.RequestDeliverTx) (rsp types.ResponseDeliverTx) {
-	tx := Tx{}
-	_ = UnmarshalBinary(raw.Tx, &tx)
-	switch tx.Payload.GetType() {
-	case "issue":
-		pld := tx.Payload.(*IssuePayload)
-		err := app.Issue(pld.Issuer, pld.To, pld.Value)
-		if err != nil {
-			rsp.Log = err.Error()
-		}
-		rsp.Info = "issue tx applied"
-	case "transfer":
-		pld := tx.Payload.(*TransferPayload)
-		err := app.Transfer(pld.From, pld.To, pld.Value)
-		if err != nil {
-			rsp.Log = err.Error()
-		}
-		rsp.Info = "transger tx applied"
+
+	// if it starts with "val:", update the validator set
+	// format is "val:pubkey!power"
+	if isValidatorTx(raw.Tx) {
+		// update validators in the merkle tree
+		// and in app.ValUpdates
+		app.logger.Info("exec add validator node!")
+		return app.execValidatorTx(raw.Tx)
 	}
 
-	return
+	// otherwise, update the key-value store
+	return func() (rsp types.ResponseDeliverTx) {
+
+		app.logger.Info("tx......")
+		tx := Tx{}
+		_ = UnmarshalBinary(raw.Tx, &tx)
+		switch tx.Payload.GetType() {
+		case "issue":
+			pld := tx.Payload.(*IssuePayload)
+			err := app.Issue(pld.Issuer, pld.To, pld.Value)
+			if err != nil {
+				rsp.Log = err.Error()
+			}
+			rsp.Info = "issue tx applied"
+		case "transfer":
+			pld := tx.Payload.(*TransferPayload)
+			err := app.Transfer(pld.From, pld.To, pld.Value)
+			if err != nil {
+				rsp.Log = err.Error()
+			}
+			rsp.Info = "transger tx applied"
+		}
+
+		return
+	}()
+
 }
 
 // Commit will panic if InitChain was not called
@@ -165,6 +186,12 @@ func (app *PersistentUfcApplication) Commit() types.ResponseCommit {
 
 // Save the validators in the merkle tree
 func (app *PersistentUfcApplication) InitChain(req types.RequestInitChain) types.ResponseInitChain {
+	//var state map[string]int64
+	//json.Unmarshal(req.AppStateBytes,&state)
+	//app.Value,_ = state["priv_validator_key_file"]
+	//app.Version = 0
+	//
+
 	for _, v := range req.Validators {
 		r := app.updateValidator(v)
 		if r.IsErr() {
@@ -190,9 +217,49 @@ func (app *PersistentUfcApplication) BeginBlock(req types.RequestBeginBlock) typ
 				Power:  ev.TotalVotingPower - 1,
 			})
 		}
+
 	}
+
+	//app.updateValidator(types.ValidatorUpdate{
+	//	PubKey: LoadLocalPubKey(),
+	//	Power: 10,
+	//})
+
 	return types.ResponseBeginBlock{}
 }
+
+//type PubKey1 struct {
+//	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+//	Value string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+//
+//}
+//// FilePVKey stores the immutable part of PrivValidator.
+//type PrivValidatorKey struct {
+//	Address Address  `json:"address"`
+//	PubKey  PubKey1  `json:"pub_key"`
+//	PrivKey PubKey1 `json:"priv_key"`
+//}
+//
+//
+//
+//func LoadLocalPubKey() types.PubKey{
+//	//validator_node_file:="..\\config\\priv_validator_key.json"
+//	cfg := config.DefaultBaseConfig()
+//	fmt.Println("..\\"+cfg.PrivValidatorKeyFile())
+//	bz,err := ioutil.ReadFile("..\\"+cfg.PrivValidatorKeyFile())
+//	if err != nil { panic(err)}
+//	pvk:=PrivValidatorKey{}
+//
+//	err = codec.UnmarshalJSON(bz,&pvk)
+//	fmt.Println(pvk)
+//	if err != nil { panic(err)}
+//	fmt.Println(pvk.PubKey.Value)
+//	//pubkey2:=types.PubKey{Type:pvk.PubKey.Type,Data:pvk.PubKey.Value,}
+//	//fmt.Println(pubkey2)
+//
+//	//return pubkey2
+//	return types.PubKey{}
+//}
 
 // Update the validator set
 func (app *PersistentUfcApplication) EndBlock(req types.RequestEndBlock) types.ResponseEndBlock {
@@ -206,8 +273,15 @@ func (app *PersistentUfcApplication) Transfer(from, to crypto.Address, value int
 		return errors.New("balance low")
 	}
 
+	fmt.Println("before transger from app.app.Accounts[to.String()]", app.app.Accounts[from.String()])
+	fmt.Println("before transger to app.app.Accounts[to.String()]", app.app.Accounts[to.String()])
+
 	app.app.Accounts[from.String()] -= value
 	app.app.Accounts[to.String()] += value
+
+	fmt.Println("after transger from app.app.Accounts[to.String()]", app.app.Accounts[from.String()])
+	fmt.Println("after transger to app.app.Accounts[to.String()]", app.app.Accounts[to.String()])
+
 	return nil
 
 }
@@ -222,7 +296,7 @@ func (app *PersistentUfcApplication) Transfer(from, to crypto.Address, value int
 //发行货币 向系统账号增加货币数量
 func (app *PersistentUfcApplication) Issue(issuer, to crypto.Address, value int) error {
 	//导入钱包信息
-	wallet := LoadWallet("./wallet")
+	wallet := LoadWallet()
 	//获取系统账号地址
 	SYSTEM_ISSUER = wallet.GetAddress("issuer")
 
@@ -232,16 +306,52 @@ func (app *PersistentUfcApplication) Issue(issuer, to crypto.Address, value int)
 	}
 
 	fmt.Println("app.app.Accounts[to.String()]", app.app.Accounts[to.String()])
+	fmt.Println("before transger to app.app.Accounts[to.String()]", app.app.Accounts[to.String()])
 
 	//把发行的系统账号累加发行货币数量
 	app.app.Accounts[to.String()] += value
 	fmt.Println("app.app.Accounts[to.String()]", app.app.Accounts[to.String()])
+	fmt.Println("after transger to app.app.Accounts[to.String()]", app.app.Accounts[to.String()])
 
 	return nil
 }
 
 func (app *PersistentUfcApplication) Dump() {
 	fmt.Printf("state => %v\n", app.app.Accounts)
+}
+
+// format is "val:pubkey!power"
+// pubkey is a base64-encoded 32-byte ed25519 key
+func (app *PersistentUfcApplication) execValidatorTx(tx []byte) types.ResponseDeliverTx {
+	tx = tx[len(ValidatorSetChangePrefix):]
+
+	//get the pubkey and power
+	pubKeyAndPower := strings.Split(string(tx), "!")
+	if len(pubKeyAndPower) != 2 {
+		return types.ResponseDeliverTx{
+			Code: code.CodeTypeEncodingError,
+			Log:  fmt.Sprintf("Expected 'pubkey!power'. Got %v", pubKeyAndPower)}
+	}
+	pubkeyS, powerS := pubKeyAndPower[0], pubKeyAndPower[1]
+
+	// decode the pubkey
+	pubkey, err := base64.StdEncoding.DecodeString(pubkeyS)
+	if err != nil {
+		return types.ResponseDeliverTx{
+			Code: code.CodeTypeEncodingError,
+			Log:  fmt.Sprintf("Pubkey (%s) is invalid base64", pubkeyS)}
+	}
+
+	// decode the power
+	power, err := strconv.ParseInt(powerS, 10, 64)
+	if err != nil {
+		return types.ResponseDeliverTx{
+			Code: code.CodeTypeEncodingError,
+			Log:  fmt.Sprintf("Power (%s) is not an int", powerS)}
+	}
+
+	// update
+	return app.updateValidator(types.Ed25519ValidatorUpdate(pubkey, power))
 }
 
 // add, update, or remove a validator
