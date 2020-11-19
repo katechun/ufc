@@ -115,13 +115,17 @@ func (app *PersistentUfcApplication) Query(req types.RequestQuery) (rsp types.Re
 	//获取账户信息并进行序列化
 	rsp.Value, _ = MarshalBinary(app.app.Accounts[addr.String()])
 	rsp.Key = req.Data
-	rsp.Log = fmt.Sprintf("balance : %v => %v", addr, app.app.Accounts[addr.String()])
+	rsp.Log = fmt.Sprintf("balance : U-%v => %v", addr, app.app.Accounts[addr.String()])
 	//fmt.Println(rsp.Value)
 	//rsp.Value=app.Accounts[addr.String()]
 	return
 }
 
 func (app *PersistentUfcApplication) CheckTx(raw types.RequestCheckTx) (rsp types.ResponseCheckTx) {
+	prefix := raw.Tx[0:len(ValidatorSetChangePrefix)]
+	if string(prefix) == "val:" {
+		return
+	}
 
 	//tx,err := app.decodeTx(raw.Tx)
 	tx := Tx{}
@@ -142,6 +146,12 @@ func (app *PersistentUfcApplication) CheckTx(raw types.RequestCheckTx) (rsp type
 //发布事务
 func (app *PersistentUfcApplication) DeliverTx(raw types.RequestDeliverTx) (rsp types.ResponseDeliverTx) {
 
+	tx := Tx{}
+	_ = UnmarshalBinary(raw.Tx, &tx)
+	//return  types.ResponseDeliverTx{
+	//	Code:1,
+	//	Log: fmt.Sprintf("Expected 'pubkey!power'. Got %v", raw.Tx),
+	//}
 	// if it starts with "val:", update the validator set
 	// format is "val:pubkey!power"
 	if isValidatorTx(raw.Tx) {
@@ -332,6 +342,7 @@ func (app *PersistentUfcApplication) execValidatorTx(tx []byte) types.ResponseDe
 			Code: code.CodeTypeEncodingError,
 			Log:  fmt.Sprintf("Expected 'pubkey!power'. Got %v", pubKeyAndPower)}
 	}
+
 	pubkeyS, powerS := pubKeyAndPower[0], pubKeyAndPower[1]
 
 	// decode the pubkey
@@ -355,7 +366,7 @@ func (app *PersistentUfcApplication) execValidatorTx(tx []byte) types.ResponseDe
 }
 
 // add, update, or remove a validator
-func (app *PersistentUfcApplication) updateValidator(v types.ValidatorUpdate) types.ResponseDeliverTx {
+func (app *PersistentUfcApplication) updateValidator(v types.ValidatorUpdate) (rsp types.ResponseDeliverTx) {
 	key := []byte("val:" + string(v.PubKey.Data))
 
 	pubkey := ed25519.PubKeyEd25519{}

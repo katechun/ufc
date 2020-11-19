@@ -74,21 +74,23 @@ func Run() {
 			}
 			label := args[0]
 			lib.CreateAccount(label)
+			fmt.Println("Account create success!")
 			return nil
 		},
 	}
 
 	issueCmd := &cobra.Command{
 		Use:   "issue_tx",
-		Short: "Issue coins",
+		Short: "Issue coins, Please use [cli user]",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return errors.New("Issue coin error!")
+				return errors.New("Issue coin error! Please use [cli user]")
 			}
 			err := tx.Issue(app_cli, args[0])
 			if err != nil {
 				fmt.Println(err)
 			}
+			fmt.Println("Issue Success!")
 			return nil
 		},
 	}
@@ -100,7 +102,7 @@ func Run() {
 			if len(args) == 0 {
 				return errors.New("Issue coin error!")
 			}
-			err := tx.Transfer(app_cli, args[0], args[1])
+			err := tx.Transfer(app_cli, args[0], args[1], args[2])
 			if err != nil {
 				fmt.Println(err)
 			}
