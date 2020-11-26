@@ -1,6 +1,6 @@
 package paramer
 
-import "ufc/lib"
+import "ubc/lib"
 
 //var (
 //	Issuer = kf.GenPrivKey()

@@ -1,4 +1,4 @@
-module ufc
+module ubc
 
 go 1.14
 

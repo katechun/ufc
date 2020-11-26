@@ -16,9 +16,10 @@ import (
 	"github.com/tendermint/tendermint/proxy"
 	"github.com/tendermint/tendermint/rpc/client/http"
 	dbm "github.com/tendermint/tm-db"
-	"ufc/lib"
-	px "ufc/paramer"
-	"ufc/tx"
+	"strconv"
+	"ubc/lib"
+	px "ubc/paramer"
+	"ubc/tx"
 )
 
 var _ types.Application = (*lib.TokenApp)(nil)
@@ -29,9 +30,8 @@ var (
 
 type App struct {
 	types.BaseApplication
-	Value   int64
-	Version int64
-	//History      map[int64]int64
+	Value        int64
+	Version      int64
 	state        State
 	RetainBlocks int64
 }
@@ -55,10 +55,6 @@ type UApp struct {
 
 func Run() {
 
-	//rootCmd := &cobra.Command{
-	//	Use: "cli",
-	//}
-
 	walletCmd := &cobra.Command{
 		Use:   "init_wallet",
 		Short: "Initialize Wallet",
@@ -81,12 +77,13 @@ func Run() {
 
 	issueCmd := &cobra.Command{
 		Use:   "issue_tx",
-		Short: "Issue coins, Please use [cli user]",
+		Short: "Issue coins, Please use [cli issue_tx user]",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return errors.New("Issue coin error! Please use [cli user]")
 			}
-			err := tx.Issue(app_cli, args[0])
+			val, _ := strconv.Atoi(args[1])
+			err := tx.Issue(app_cli, args[0], val)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -123,6 +120,21 @@ func Run() {
 		},
 	}
 
+	querytxCmd := &cobra.Command{
+		Use:   "tx",
+		Short: "Add tx info",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return errors.New("Add tx  error!")
+			}
+			err := tx.Addtx(app_cli, args[0])
+			if err != nil {
+				fmt.Println(err)
+			}
+			return nil
+		},
+	}
+
 	runAppCmd := &cobra.Command{
 		Use:   "run_app",
 		Short: "Run a ABCI Application",
@@ -147,6 +159,7 @@ func Run() {
 	root.AddCommand(queryCmd)
 	root.AddCommand(runAppCmd)
 	root.AddCommand(createAccountCmd)
+	root.AddCommand(querytxCmd)
 
 	exec := cli.PrepareBaseCmd(root, "wiz", ".")
 	_ = exec.Execute()

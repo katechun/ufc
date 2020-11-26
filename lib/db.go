@@ -4,22 +4,22 @@ import (
 	"fmt"
 	"io/ioutil"
 	"runtime"
-	"ufc/tools"
+	"ubc/tools"
 )
 
-func GetDbDir() string{
+func GetDbDir() string {
 
 	sys_version := runtime.GOOS
 
 	if sys_version == "windows" {
-		isexist,_:=tools.PathExists("E:\\tmp")
+		isexist, _ := tools.PathExists("E:\\tmp")
 		if isexist {
 			dir, err := ioutil.TempDir("E:\\tmp", "abci-kvstore-test") // TODO
 			if err != nil {
 				fmt.Println(err)
 			}
 			return dir
-		}else {
+		} else {
 			panic("Db file not exist!")
 		}
 

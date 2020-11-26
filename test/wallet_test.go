@@ -3,7 +3,7 @@ package test
 import (
 	"github.com/stretchr/testify/require"
 	"testing"
-	"ufc/lib"
+	"ubc/lib"
 )
 
 func testGenPrivKey(t *testing.T, label string) {

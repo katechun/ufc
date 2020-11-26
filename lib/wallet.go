@@ -5,7 +5,7 @@ import (
 	kf "github.com/tendermint/tendermint/crypto/secp256k1"
 	"io/ioutil"
 	"sync"
-	"ufc/tools"
+	"ubc/tools"
 )
 
 //定义钱包列表
@@ -108,6 +108,7 @@ func (wallet *Wallet) GetPubKey(label string) crypto.PubKey {
 
 func (wallet *Wallet) GetAddress(label string) crypto.Address {
 	priv := wallet.Keys[label]
+
 	if priv == nil {
 		panic("key not found")
 	}

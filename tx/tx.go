@@ -6,10 +6,10 @@ import (
 	"github.com/tendermint/tendermint/rpc/client/http"
 	"strconv"
 	"strings"
-	"ufc/lib"
+	"ubc/lib"
 )
 
-func Issue(cli *http.HTTP, to string) error {
+func Issue(cli *http.HTTP, to string, value int) error {
 	if to == "" {
 		return errors.New("Account addr is null!")
 	}
@@ -17,7 +17,7 @@ func Issue(cli *http.HTTP, to string) error {
 	tx := lib.NewTx(lib.NewIssuePayload(
 		wallet.GetAddress("issuer"),
 		wallet.GetAddress(to),
-		10000))
+		value))
 	//fmt.Println("tx.PubKey:", tx.PubKey)
 	//fmt.Println("tx.payload:", tx.Payload)
 	//fmt.Println("tx.sequence:", tx.Sequence)
@@ -83,6 +83,16 @@ func Query(label string, cli *http.HTTP) {
 	//fmt.Printf("ret => %+v\n", ret)
 
 	fmt.Println(string(ret.Response.GetLog()))
+}
+
+func Addtx(cli *http.HTTP, key string) error {
+
+	ret, err := cli.BroadcastTxCommit([]byte(key))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Add tx ret => %+v\n", ret)
+	return nil
 }
 
 func QueryVal(label string, cli *http.HTTP) int {

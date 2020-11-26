@@ -1,8 +1,7 @@
 package main
 
-import "ufc/comm"
+import "ubc/comm"
 
-func main(){
+func main() {
 	comm.Run()
 }
-
